@@ -1,6 +1,14 @@
 import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lib.db import Base
@@ -93,6 +101,53 @@ class Position(Base):
     )
 
     announcement: Mapped["Announcement"] = relationship(back_populates="positions")
+    # 의미검색용 임베딩(1:1). lazy 로딩이라 일반 검색 쿼리에는 영향 없음.
+    embedding: Mapped["PositionEmbedding | None"] = relationship(
+        back_populates="position", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class PositionEmbedding(Base):
+    """직무(Position) 텍스트를 임베딩한 벡터. 직무 1개당 1행(1:1).
+
+    벡터는 float32를 그대로 이어붙인 바이트로 저장한다(1024차원 = 4KB).
+    numpy.frombuffer(vector, dtype=np.float32)로 복원한다.
+    text_hash는 임베딩의 원본 텍스트 해시로, 원문이 바뀌면 재계산 대상인지 판별한다.
+    """
+
+    __tablename__ = "position_embeddings"
+
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("positions.id"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(50))
+    dim: Mapped[int] = mapped_column(Integer)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    text_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    position: Mapped["Position"] = relationship(back_populates="embedding")
+
+
+class QueryCache(Base):
+    """검색어 임베딩 캐시(DB 영속). 자주 쓰는 단어를 반복 임베딩하지 않도록 한다.
+
+    키는 (정규화한 검색어 + 모델명). 서버를 재시작해도 유지된다.
+    인메모리 캐시(lib/similarity.py)와 2단계로 함께 쓴다.
+    """
+
+    __tablename__ = "query_cache"
+
+    query: Mapped[str] = mapped_column(String(200), primary_key=True)
+    model: Mapped[str] = mapped_column(String(50), primary_key=True)
+    dim: Mapped[int] = mapped_column(Integer)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
 
 class Attachment(Base):

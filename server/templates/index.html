@@ -27,6 +27,8 @@
   .badge-mixed { background: #ea580c26; color: #ea580c; }
   .badge-low-confidence { background: #dc262626; color: #dc2626; }
   .badge-license { background: #7c3aed26; color: #7c3aed; }
+  .badge-sim { background: #0891b226; color: #0891b2; }
+  .hint { color: #888; font-size: .8rem; margin: -1rem 0 1.5rem; }
   .desc { font-size: .9rem; margin: .5rem 0; }
   .tags { font-size: .78rem; color: #888; margin-bottom: .4rem; }
   .tag { display: inline-block; background: #8882; border-radius: 999px; padding: .05rem .5rem; margin-right: .3rem; }
@@ -49,7 +51,9 @@
   <p class="status">전체 공고 {{ extraction_status.total }}건 중 {{ extraction_status.extracted }}건 직무 분석 완료</p>
 
   <form method="get" action="/">
-    <input type="text" name="keyword" placeholder="직무명 / 공고제목 / 기관명" value="{{ filters.keyword }}">
+    <input type="text" name="keyword" placeholder="직무명 / 공고제목 / 기관명 (부분일치)" value="{{ filters.keyword }}">
+    <input type="text" name="sem" placeholder="의미 검색 (예: 인공지능)" value="{{ filters.sem }}" title="입력한 단어와 의미가 비슷한 직무를 유사도순으로 찾습니다">
+    <input type="number" name="min_sim" min="0" max="1" step="0.05" value="{{ '%.2f'|format(filters.min_sim) }}" title="의미검색 유사도 임계값(0~1). 높일수록 더 비슷한 것만 표시" style="flex: 0 0 90px;">
     <input type="text" name="tag" placeholder="태그 (예: 전산, 정규직)" value="{{ filters.tag }}">
     <select name="career" title="내 경력 상태로 지원 가능한 공고를 모두 표시합니다">
       <option value="">내 경력 (전체)</option>
@@ -72,9 +76,17 @@
     </select>
     <button type="submit">검색</button>
   </form>
+  <p class="hint">💡 <b>의미 검색</b>에 단어를 넣으면(예: 인공지능) 글자가 정확히 일치하지 않아도 의미가 비슷한 직무를 유사도순으로 찾습니다. 결과가 너무 적으면 유사도 임계값을 낮춰보세요.</p>
+
+  {% if sem_error %}
+    <p class="empty">⚠️ 의미검색을 실행할 수 없습니다.<br>
+      Ollama 서버가 떠 있는지, 임베딩 모델(bge-m3)이 pull 되어 있는지,<br>
+      그리고 <code>python embed.py</code>로 직무 벡터를 만들었는지 확인하세요.</p>
+  {% endif %}
 
   <p class="count">
     총 {{ total }}개 직무
+    {% if filters.sem %}<span class="range">· "{{ filters.sem }}" 의미검색 (유사도 ≥ {{ "%.0f"|format(filters.min_sim * 100) }}%)</span>{% endif %}
     {% if total > 0 %}<span class="range">({{ range_start }}–{{ range_end }} 표시)</span>{% endif %}
   </p>
 
@@ -86,13 +98,16 @@
     </p>
   {% endif %}
 
-  {% set qs %}keyword={{ filters.keyword|urlencode }}&tag={{ filters.tag|urlencode }}&career={{ filters.career|urlencode }}&edu={{ filters.edu|urlencode }}&work_rgn={{ filters.work_rgn|urlencode }}&bgn_date={{ filters.bgn_date|urlencode }}&end_date={{ filters.end_date|urlencode }}&sort={{ filters.sort|urlencode }}{% endset %}
+  {% set qs %}keyword={{ filters.keyword|urlencode }}&sem={{ filters.sem|urlencode }}&min_sim={{ filters.min_sim }}&tag={{ filters.tag|urlencode }}&career={{ filters.career|urlencode }}&edu={{ filters.edu|urlencode }}&work_rgn={{ filters.work_rgn|urlencode }}&bgn_date={{ filters.bgn_date|urlencode }}&end_date={{ filters.end_date|urlencode }}&sort={{ filters.sort|urlencode }}{% endset %}
 
   {% for p in results %}
   {% set a = p.announcement %}
   <div class="card">
     <h2>{{ p.title }}</h2>
     <div class="meta">
+      {% if sim_map.get(p.id) is not none %}
+        <span class="badge badge-sim">유사도 {{ "%.0f"|format(sim_map[p.id] * 100) }}%</span>
+      {% endif %}
       {% set edu_suffix = " · " ~ p.min_education ~ " 이상" if p.min_education and p.min_education != "무관" else "" %}
       {% if p.career_level == "신입" %}
         <span class="badge badge-신입">신입{{ edu_suffix }}</span>
