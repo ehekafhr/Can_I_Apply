@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 
@@ -7,6 +8,9 @@ from sqlalchemy import func, select
 
 from lib.db import SessionLocal
 from lib.models import Announcement, Position
+from lib.similarity import DEFAULT_MIN_SIM, search_similar
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), "templates"))
@@ -58,6 +62,8 @@ CAREER_FILTER_OPTIONS = [
 def search(
     request: Request,
     keyword: str | None = Query(None),
+    sem: str | None = Query(None, description="의미 기반 검색어; 유사한 직무를 유사도순으로 표시"),
+    min_sim: float | None = Query(None, ge=0.0, le=1.0, description="의미검색 유사도 임계값(0~1)"),
     tag: str | None = Query(None),
     career: str | None = Query(None, description="사용자 본인의 경력 상태(신입/경력); 지원 가능한 공고를 모두 표시"),
     edu: str | None = Query(None, description="사용자 본인의 최종학력; 이 학력으로 지원 가능한 공고를 모두 표시"),
@@ -95,19 +101,43 @@ def search(
         if end_date:
             base = base.where(Announcement.pbanc_bgng_ymd <= end_date)
 
-        total_filtered = session.execute(
-            select(func.count()).select_from(base.subquery())
-        ).scalar_one()
-        total_pages = max(1, (total_filtered + PAGE_SIZE - 1) // PAGE_SIZE)
-        page = min(page, total_pages)
+        min_sim_eff = min_sim if min_sim is not None else DEFAULT_MIN_SIM
+        sim_map: dict[int, float] = {}
+        sem_error = False
+        sem_q = (sem or "").strip()
 
-        if sort == "deadline":
-            stmt = base.order_by(Announcement.pbanc_end_ymd.asc(), Position.id.asc())
+        if sem_q:
+            # 의미검색: 다른 필터(경력/학력/지역/기간/태그)로 후보를 좁힌 뒤
+            # 검색어와의 코사인 유사도로 임계값 이상만 유사도순 정렬한다.
+            candidates = session.execute(base).scalars().all()
+            pos_map = {p.id: p for p in candidates}
+            try:
+                ranked = search_similar(sem_q, min_sim_eff, candidate_ids=set(pos_map))
+            except Exception as exc:
+                logger.warning("의미검색 실패(Ollama/임베딩 모델 확인 필요): %s", exc)
+                ranked = []
+                sem_error = True
+
+            total_filtered = len(ranked)
+            total_pages = max(1, (total_filtered + PAGE_SIZE - 1) // PAGE_SIZE)
+            page = min(page, total_pages)
+            page_slice = ranked[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
+            results = [pos_map[pid] for pid, _ in page_slice]
+            sim_map = {pid: sim for pid, sim in page_slice}
         else:
-            stmt = base.order_by(Announcement.recrut_pblnt_sn.desc(), Position.id.asc())
-        stmt = stmt.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+            total_filtered = session.execute(
+                select(func.count()).select_from(base.subquery())
+            ).scalar_one()
+            total_pages = max(1, (total_filtered + PAGE_SIZE - 1) // PAGE_SIZE)
+            page = min(page, total_pages)
 
-        results = session.execute(stmt).scalars().all()
+            if sort == "deadline":
+                stmt = base.order_by(Announcement.pbanc_end_ymd.asc(), Position.id.asc())
+            else:
+                stmt = base.order_by(Announcement.recrut_pblnt_sn.desc(), Position.id.asc())
+            stmt = stmt.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+
+            results = session.execute(stmt).scalars().all()
 
         for p in results:
             p.announcement.attachments  # noqa: B018 (관계 즉시 로딩 트리거, expire_on_commit=False라 세션 종료 후에도 접근 가능)
@@ -130,12 +160,16 @@ def search(
             "total_pages": total_pages,
             "career_options": CAREER_FILTER_OPTIONS,
             "education_options": EDU_FILTER_OPTIONS,
+            "sim_map": sim_map,
+            "sem_error": sem_error,
             "extraction_status": {
                 "total": total_announcements,
                 "extracted": extracted_announcements,
             },
             "filters": {
                 "keyword": keyword or "",
+                "sem": sem or "",
+                "min_sim": min_sim_eff,
                 "tag": tag or "",
                 "career": career or "",
                 "edu": edu or "",

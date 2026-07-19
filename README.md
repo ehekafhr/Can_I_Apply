@@ -2,6 +2,8 @@
 ```bash
 export OLLAMA_MODELS=~/.local/ollama/models
 ~/.local/ollama/bin/ollama serve        # 11434 포트에서 대기
+ollama pull exaone3.5:7.8b              # 직무 추출용 (2단계)
+ollama pull bge-m3                      # 의미검색 임베딩용 (2.5단계)
 ```
 ## 실행
 
@@ -9,7 +11,7 @@ export OLLAMA_MODELS=~/.local/ollama/models
 # 0) 준비
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-# Ollama 서버 + 모델(exaone3.5:7.8b)이 로컬에서 떠 있어야 추출이 된다.
+# Ollama 서버 + 모델(exaone3.5:7.8b, bge-m3)이 로컬에서 떠 있어야 한다.
 
 # 1) 수집
 python collect.py --backfill      # 최초: 진행중 공고 전체
@@ -18,10 +20,19 @@ python collect.py                 # 이후: 신규만
 # 2) 추출
 python extract.py                 # positions 없는 공고를 직무로 분해
 
+# 2.5) 임베딩 (의미검색용 직무 벡터)
+python embed.py                   # 새/변경된 직무만 임베딩 (증분)
+python embed.py --all             # 전부 다시 (임베딩 모델을 바꿨을 때)
+
 # 3) 웹서버
 uvicorn app:app --host 0.0.0.0 --port 8420
 # http://127.0.0.1:8420 접속
 ```
+
+### 의미(유사도) 검색
+웹 화면의 **의미 검색** 칸에 단어(예: `인공지능`)를 넣으면, 글자가 정확히
+일치하지 않아도 의미가 비슷한 직무를 코사인 유사도순으로 찾아준다.
+유사도 임계값(0~1)으로 결과 범위를 조절한다. 
 
 ## 외부 공개 (외부 인터넷 접속)
 `--host 0.0.0.0`만으로는 밖에서 닿지 않기 때문에, Cloudflare 터널로 공개한다.
