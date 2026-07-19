@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>경력직이신가요? — 공공기관 채용정보 검색</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; max-width: 900px; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+  h1 { font-size: 1.4rem; margin-bottom: .25rem; }
+  .sub { color: #888; font-size: .9rem; margin-bottom: 1.5rem; }
+  form { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #8883; border-radius: 8px; }
+  form input, form select { padding: .4rem .5rem; border: 1px solid #8886; border-radius: 6px; font-size: .9rem; }
+  form input[type=text] { flex: 1 1 180px; }
+  form button { padding: .4rem 1rem; border-radius: 6px; border: none; background: #2563eb; color: #fff; cursor: pointer; }
+  .count { color: #888; font-size: .85rem; margin-bottom: 1rem; }
+  .card { border: 1px solid #8883; border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
+  .card h2 a { text-decoration: none; color: inherit; }
+  .card h2 a:hover { text-decoration: underline; }
+  .meta { font-size: .85rem; color: #888; margin-bottom: .5rem; display: flex; flex-wrap: wrap; gap: .6rem; }
+  .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+  .badge-신입 { background: #16a34a26; color: #16a34a; }
+  .badge-경력 { background: #2563eb26; color: #2563eb; }
+  .badge-무관 { background: #6b728026; color: #6b7280; }
+  .badge-mixed { background: #ea580c26; color: #ea580c; }
+  .attachments { font-size: .82rem; margin-top: .4rem; }
+  .attachments a { margin-right: .6rem; }
+  .empty { color: #888; padding: 2rem 0; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>경력직이신가요?</h1>
+  <p class="sub">잡알리오 공공기관 채용정보 — "신입" 필터에도 섞여 나오는 신입+경력 통합공고를 구분해서 봅니다.</p>
+
+  <form method="get" action="/">
+    <input type="text" name="keyword" placeholder="제목 / 기관명 검색" value="{{ filters.keyword }}">
+    <select name="recrut_se">
+      <option value="">경력구분 전체</option>
+      {% for opt in career_options %}
+      <option value="{{ opt }}" {% if opt == filters.recrut_se %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+    <input type="text" name="work_rgn" placeholder="지역 (예: 서울)" value="{{ filters.work_rgn }}">
+    <input type="text" name="bgn_date" placeholder="시작일 이후 (YYYYMMDD)" value="{{ filters.bgn_date }}">
+    <input type="text" name="end_date" placeholder="시작일 이전 (YYYYMMDD)" value="{{ filters.end_date }}">
+    <select name="sort">
+      <option value="latest" {% if filters.sort == "latest" %}selected{% endif %}>최신순</option>
+      <option value="deadline" {% if filters.sort == "deadline" %}selected{% endif %}>마감임박순</option>
+    </select>
+    <button type="submit">검색</button>
+  </form>
+
+  <p class="count">{{ total }}건</p>
+
+  {% if not results %}
+    <p class="empty">검색 결과가 없습니다. 아직 수집된 공고가 없다면 <code>python collect.py --backfill</code>을 먼저 실행하세요.</p>
+  {% endif %}
+
+  {% for a in results %}
+  <div class="card">
+    <h2><a href="{{ a.src_url }}" target="_blank" rel="noopener">{{ a.recrut_pbanc_ttl }}</a></h2>
+    <div class="meta">
+      <span>{{ a.inst_nm }}</span>
+      {% if "+" in (a.recrut_se_nm or "") %}
+        <span class="badge badge-mixed">{{ a.recrut_se_nm }} (혼합공고 — 원문 확인 필요)</span>
+      {% elif a.recrut_se_nm == "신입" %}
+        <span class="badge badge-신입">신입</span>
+      {% elif a.recrut_se_nm == "경력" %}
+        <span class="badge badge-경력">경력</span>
+      {% else %}
+        <span class="badge badge-무관">{{ a.recrut_se_nm or "미상" }}</span>
+      {% endif %}
+      <span>{{ a.work_rgn_nm_lst }}</span>
+      <span>{{ a.pbanc_bgng_ymd }} ~ {{ a.pbanc_end_ymd }}</span>
+      <span>{{ a.hire_type_nm_lst }}</span>
+    </div>
+    {% if a.attachments %}
+    <div class="attachments">
+      첨부:
+      {% for f in a.attachments %}
+        {% if f.crawl_status == "downloaded" %}
+          <a href="{{ f.file_url }}" target="_blank" rel="noopener">{{ f.file_name }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</body>
+</html>

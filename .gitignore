@@ -1,1 +1,7 @@
 .claude/
+key.txt
+*.db
+downloads/
+__pycache__/
+*.pyc
+.venv/
