@@ -36,29 +36,27 @@ _FIELD_MAP = {
 }
 
 
+# 받아온 item(dict)에서 Announcement 모델 생성자에 넣을 kwargs(dict)를 만든다.
 def _item_to_kwargs(item: dict) -> dict:
     kwargs = {model_key: item.get(api_key) for api_key, model_key in _FIELD_MAP.items()}
     kwargs["raw_json"] = json.dumps(item, ensure_ascii=False)
     return kwargs
 
-
+# update + insert
 def _upsert(session, item: dict) -> bool:
-    """announcement 하나를 upsert한다. 새로 추가된 경우 True를 반환."""
     kwargs = _item_to_kwargs(item)
     pk = kwargs["recrut_pblnt_sn"]
     existing = session.get(Announcement, pk)
     if existing is None:
         session.add(Announcement(**kwargs))
-        return True
+        return True # insert
     for key, value in kwargs.items():
         setattr(existing, key, value)
-    return False
+    return False #update
 
-
+# 접수중인 공고 전체 upsert, 신규 저장된 공고의 recrut_pblnt_sn 목록 반환
 def backfill_ongoing(num_rows: int = 100) -> list[int]:
-    """현재 접수중(ongoingYn=Y)인 공고 전체를 최초 적재하고, 신규 저장된
-    recrut_pblnt_sn 목록을 반환한다."""
-    init_db()
+    init_db() #metadata.create_all(engine) 호출
     new_ids: list[int] = []
     with JobAlioClient() as client, SessionLocal() as session:
         for page in client.iter_pages(num_rows=num_rows, ongoingYn="Y"):
@@ -69,11 +67,9 @@ def backfill_ongoing(num_rows: int = 100) -> list[int]:
     logger.info("backfill_ongoing: %d건 신규 저장", len(new_ids))
     return new_ids
 
-
+# 최신순으로 순회하다 이미 DB에 있는 공고를 만나면 중단
 def collect_new(num_rows: int = 100) -> list[int]:
-    """최신순으로 순회하다 이미 DB에 있는 공고를 만나면 중단하고, 새로 추가된
-    recrut_pblnt_sn 목록을 반환한다(첨부파일 크롤링 대상 선정에 사용)."""
-    init_db()
+    init_db() #metadata.create_all(engine) 호출
     new_ids: list[int] = []
     with JobAlioClient() as client, SessionLocal() as session:
         stop = False

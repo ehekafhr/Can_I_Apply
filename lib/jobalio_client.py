@@ -10,15 +10,8 @@ def _load_key() -> str:
     with open(KEY_PATH, encoding="utf-8") as f:
         return f.read().strip()
 
-
+# 잡알리오 공공기관 채용정보 조회 API 클라이언트
 class JobAlioClient:
-    """잡알리오 공공기관 채용정보 조회 API 클라이언트.
-
-    Swagger 문서를 확인할 수 없어 실제 호출로 검증한 파라미터만 사용한다:
-    pageNo/numOfRows로 페이지네이션하며, 결과는 항상 recrutPblntSn 내림차순(최신순)이다.
-    recrutSe/pbancBgngYmd/workRgnLst/hireTypeLst/ncsCdLst/pblntInstCd/ongoingYn은
-    완전일치 필터로 동작하지만, 날짜 구간 검색 파라미터는 존재하지 않는다.
-    """
 
     def __init__(self, service_key: str | None = None, timeout: float = 15.0):
         self.service_key = service_key or _load_key()

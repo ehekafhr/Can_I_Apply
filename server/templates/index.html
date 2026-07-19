@@ -8,37 +8,59 @@
   :root { color-scheme: light dark; }
   body { font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; max-width: 900px; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
   h1 { font-size: 1.4rem; margin-bottom: .25rem; }
-  .sub { color: #888; font-size: .9rem; margin-bottom: 1.5rem; }
+  .sub { color: #888; font-size: .9rem; margin-bottom: .5rem; }
+  .status { color: #888; font-size: .8rem; margin-bottom: 1.5rem; }
   form { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; padding: 1rem; border: 1px solid #8883; border-radius: 8px; }
   form input, form select { padding: .4rem .5rem; border: 1px solid #8886; border-radius: 6px; font-size: .9rem; }
-  form input[type=text] { flex: 1 1 180px; }
+  form input[type=text] { flex: 1 1 160px; }
   form button { padding: .4rem 1rem; border-radius: 6px; border: none; background: #2563eb; color: #fff; cursor: pointer; }
   .count { color: #888; font-size: .85rem; margin-bottom: 1rem; }
   .card { border: 1px solid #8883; border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
   .card h2 { font-size: 1.05rem; margin: 0 0 .4rem; }
   .card h2 a { text-decoration: none; color: inherit; }
   .card h2 a:hover { text-decoration: underline; }
-  .meta { font-size: .85rem; color: #888; margin-bottom: .5rem; display: flex; flex-wrap: wrap; gap: .6rem; }
+  .meta { font-size: .85rem; color: #888; margin-bottom: .5rem; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
   .badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
   .badge-신입 { background: #16a34a26; color: #16a34a; }
   .badge-경력 { background: #2563eb26; color: #2563eb; }
   .badge-무관 { background: #6b728026; color: #6b7280; }
   .badge-mixed { background: #ea580c26; color: #ea580c; }
+  .badge-low-confidence { background: #dc262626; color: #dc2626; }
+  .badge-license { background: #7c3aed26; color: #7c3aed; }
+  .desc { font-size: .9rem; margin: .5rem 0; }
+  .tags { font-size: .78rem; color: #888; margin-bottom: .4rem; }
+  .tag { display: inline-block; background: #8882; border-radius: 999px; padding: .05rem .5rem; margin-right: .3rem; }
+  .evidence { font-size: .78rem; color: #888; border-left: 2px solid #8886; padding-left: .5rem; margin-top: .4rem; }
   .attachments { font-size: .82rem; margin-top: .4rem; }
   .attachments a { margin-right: .6rem; }
   .empty { color: #888; padding: 2rem 0; text-align: center; }
+  .range { color: #aaa; }
+  .no-link { color: #bbb; }
+  .pager { display: flex; gap: .5rem; align-items: center; justify-content: center; margin: 1.5rem 0; flex-wrap: wrap; }
+  .pager a { padding: .35rem .7rem; border: 1px solid #8886; border-radius: 6px; text-decoration: none; color: inherit; font-size: .85rem; }
+  .pager a:hover { background: #8882; }
+  .pager .disabled { padding: .35rem .7rem; color: #bbb; font-size: .85rem; }
+  .pager-info { font-size: .85rem; color: #888; margin: 0 .5rem; }
 </style>
 </head>
 <body>
   <h1>경력직이신가요?</h1>
-  <p class="sub">잡알리오 공공기관 채용정보 — "신입" 필터에도 섞여 나오는 신입+경력 통합공고를 구분해서 봅니다.</p>
+  <p class="sub">잡알리오 공공기관 채용정보 — AI가 직무 단위로 분해해 "신입+경력" 통합공고 속 진짜 신입 직무만 찾아줍니다.</p>
+  <p class="status">전체 공고 {{ extraction_status.total }}건 중 {{ extraction_status.extracted }}건 직무 분석 완료</p>
 
   <form method="get" action="/">
-    <input type="text" name="keyword" placeholder="제목 / 기관명 검색" value="{{ filters.keyword }}">
-    <select name="recrut_se">
-      <option value="">경력구분 전체</option>
-      {% for opt in career_options %}
-      <option value="{{ opt }}" {% if opt == filters.recrut_se %}selected{% endif %}>{{ opt }}</option>
+    <input type="text" name="keyword" placeholder="직무명 / 공고제목 / 기관명" value="{{ filters.keyword }}">
+    <input type="text" name="tag" placeholder="태그 (예: 전산, 정규직)" value="{{ filters.tag }}">
+    <select name="career" title="내 경력 상태로 지원 가능한 공고를 모두 표시합니다">
+      <option value="">내 경력 (전체)</option>
+      {% for val, label in career_options %}
+      <option value="{{ val }}" {% if val == filters.career %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="edu" title="내 최종학력으로 지원 가능한 공고를 모두 표시합니다">
+      <option value="">내 학력 (전체)</option>
+      {% for val, label in education_options %}
+      <option value="{{ val }}" {% if val == filters.edu %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
     <input type="text" name="work_rgn" placeholder="지역 (예: 서울)" value="{{ filters.work_rgn }}">
@@ -51,30 +73,59 @@
     <button type="submit">검색</button>
   </form>
 
-  <p class="count">{{ total }}건</p>
+  <p class="count">
+    총 {{ total }}개 직무
+    {% if total > 0 %}<span class="range">({{ range_start }}–{{ range_end }} 표시)</span>{% endif %}
+  </p>
 
   {% if not results %}
-    <p class="empty">검색 결과가 없습니다. 아직 수집된 공고가 없다면 <code>python collect.py --backfill</code>을 먼저 실행하세요.</p>
+    <p class="empty">
+      검색 결과가 없습니다.<br>
+      아직 수집된 공고가 없다면 <code>python collect.py --backfill</code>,<br>
+      직무 분석이 안 되어 있다면 <code>python extract.py</code>를 먼저 실행하세요.
+    </p>
   {% endif %}
 
-  {% for a in results %}
+  {% set qs %}keyword={{ filters.keyword|urlencode }}&tag={{ filters.tag|urlencode }}&career={{ filters.career|urlencode }}&edu={{ filters.edu|urlencode }}&work_rgn={{ filters.work_rgn|urlencode }}&bgn_date={{ filters.bgn_date|urlencode }}&end_date={{ filters.end_date|urlencode }}&sort={{ filters.sort|urlencode }}{% endset %}
+
+  {% for p in results %}
+  {% set a = p.announcement %}
   <div class="card">
-    <h2><a href="{{ a.src_url }}" target="_blank" rel="noopener">{{ a.recrut_pbanc_ttl }}</a></h2>
+    <h2>{{ p.title }}</h2>
     <div class="meta">
-      <span>{{ a.inst_nm }}</span>
-      {% if "+" in (a.recrut_se_nm or "") %}
-        <span class="badge badge-mixed">{{ a.recrut_se_nm }} (혼합공고 — 원문 확인 필요)</span>
-      {% elif a.recrut_se_nm == "신입" %}
-        <span class="badge badge-신입">신입</span>
-      {% elif a.recrut_se_nm == "경력" %}
-        <span class="badge badge-경력">경력</span>
+      {% set edu_suffix = " · " ~ p.min_education ~ " 이상" if p.min_education and p.min_education != "무관" else "" %}
+      {% if p.career_level == "신입" %}
+        <span class="badge badge-신입">신입{{ edu_suffix }}</span>
+      {% elif p.career_level == "경력" %}
+        <span class="badge badge-경력">경력{{ edu_suffix }}</span>
+      {% elif "+" in p.career_level %}
+        <span class="badge badge-mixed">{{ p.career_level }}{{ edu_suffix }}</span>
       {% else %}
-        <span class="badge badge-무관">{{ a.recrut_se_nm or "미상" }}</span>
+        <span class="badge badge-무관">{{ p.career_level }}{{ edu_suffix }}</span>
       {% endif %}
-      <span>{{ a.work_rgn_nm_lst }}</span>
+      {% if p.required_license %}
+        <span class="badge badge-license">🔒 {{ p.required_license }} 필수</span>
+      {% endif %}
+      {% if p.confidence is not none and p.confidence < 0.7 %}
+        <span class="badge badge-low-confidence">확인 필요 (확신도 {{ "%.0f"|format(p.confidence * 100) }}%)</span>
+      {% endif %}
+      <span>{{ a.inst_nm }}</span>
+      <span>{{ p.location or a.work_rgn_nm_lst }}</span>
       <span>{{ a.pbanc_bgng_ymd }} ~ {{ a.pbanc_end_ymd }}</span>
-      <span>{{ a.hire_type_nm_lst }}</span>
+      {% set src = a.src_url | clean_url %}
+      {% if src %}
+        <a href="{{ src }}" target="_blank" rel="noopener">원문 공고</a>
+      {% else %}
+        <span class="no-link">링크 찾지 못함</span>
+      {% endif %}
     </div>
+    {% if p.tags %}
+    <div class="tags">
+      {% for t in p.tags.split(",") %}<span class="tag">{{ t }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if p.description %}<p class="desc">{{ p.description }}</p>{% endif %}
+    {% if p.evidence %}<p class="evidence">근거: {{ p.evidence }}</p>{% endif %}
     {% if a.attachments %}
     <div class="attachments">
       첨부:
@@ -87,5 +138,25 @@
     {% endif %}
   </div>
   {% endfor %}
+
+  {% if total_pages > 1 %}
+  <nav class="pager">
+    {% if page > 1 %}
+      <a href="/?{{ qs }}&page=1">« 처음</a>
+      <a href="/?{{ qs }}&page={{ page - 1 }}">‹ 이전</a>
+    {% else %}
+      <span class="disabled">« 처음</span>
+      <span class="disabled">‹ 이전</span>
+    {% endif %}
+    <span class="pager-info">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}
+      <a href="/?{{ qs }}&page={{ page + 1 }}">다음 ›</a>
+      <a href="/?{{ qs }}&page={{ total_pages }}">마지막 »</a>
+    {% else %}
+      <span class="disabled">다음 ›</span>
+      <span class="disabled">마지막 »</span>
+    {% endif %}
+  </nav>
+  {% endif %}
 </body>
 </html>

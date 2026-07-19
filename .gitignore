@@ -5,3 +5,5 @@ downloads/
 __pycache__/
 *.pyc
 .venv/
+ARCHITECTURE.md
+CODE_GUIDE.md

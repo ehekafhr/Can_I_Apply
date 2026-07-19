@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lib.db import Base
@@ -54,6 +54,45 @@ class Announcement(Base):
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="announcement", cascade="all, delete-orphan"
     )
+    positions: Mapped[list["Position"]] = relationship(
+        back_populates="announcement", cascade="all, delete-orphan"
+    )
+
+# "직무 단위"의 레코드. 
+# 공고 하나에 "신입 + 다른 직무", "경력 + 원하는 직무" 형태로 지원 못하는 경우 지원할 수 없음에도 검색되는 문제 해결.
+class Position(Base):
+    """AI가 공고문에서 분해해 낸 직무 단위 레코드.
+
+    공고 하나에 "신입+경력"처럼 여러 직무/경력구분이 섞여 있을 수 있어
+    직무 단위로 별도 저장하고, 직무 단위 career_level/tags로 검색한다.
+    """
+
+    __tablename__ = "positions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    announcement_id: Mapped[int] = mapped_column(
+        ForeignKey("announcements.recrut_pblnt_sn"), index=True
+    )
+
+    title: Mapped[str] = mapped_column(String(300))
+    career_level: Mapped[str] = mapped_column(String(20), index=True)
+    min_education: Mapped[str | None] = mapped_column(String(20), index=True)
+    required_license: Mapped[str | None] = mapped_column(String(200))
+    tags: Mapped[str | None] = mapped_column(String(500))
+    description: Mapped[str | None] = mapped_column(Text)
+
+    headcount: Mapped[int | None] = mapped_column(Integer)
+    location: Mapped[str | None] = mapped_column(String(200))
+    requirements: Mapped[str | None] = mapped_column(Text)
+    evidence: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[float | None] = mapped_column(Float)
+
+    extraction_model: Mapped[str | None] = mapped_column(String(50))
+    extracted_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    announcement: Mapped["Announcement"] = relationship(back_populates="positions")
 
 
 class Attachment(Base):
