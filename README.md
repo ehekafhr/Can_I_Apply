@@ -1,9 +1,9 @@
 ## OLLAMA 띄우기
 ```bash
 export OLLAMA_MODELS=~/.local/ollama/models
-~/.local/ollama/bin/ollama serve        # 11434 포트에서 대기
-ollama pull exaone3.5:7.8b              # 직무 추출용 (2단계)
-ollama pull bge-m3                      # 의미검색 임베딩용 (2.5단계)
+~/.local/ollama/bin/ollama serve        
+ollama pull exaone3.5:7.8b              
+ollama pull bge-m3                      
 ```
 ## 실행
 
