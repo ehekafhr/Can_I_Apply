@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def extract_pending():
-    """positions가 아직 없는 공고를 찾아 AI로 직무 단위 분해 후 저장한다."""
+    """positions가 없는 공고를 직무 단위로 분해해 저장."""
     init_db()
     extractor = Extractor()
 
@@ -37,7 +37,7 @@ def extract_pending():
                 )
                 continue
 
-            # EXAONE이 한 응답에서 같은 직무를 중복 반환하는 경우가 있어 제거한다.
+            # 같은 직무 중복 반환 제거(CODE_GUIDE 6.4)
             seen: set = set()
             deduped = []
             for p in positions:
@@ -48,8 +48,7 @@ def extract_pending():
                 deduped.append(p)
             positions = deduped
 
-            # 공고 단위 멱등: 이 공고의 기존 직무를 먼저 지우고 새로 넣는다.
-            # 추출이 중간에 끊기거나 두 번 실행돼도 같은 공고가 중복 삽입되지 않는다.
+            # 공고 단위 멱등: 기존 직무를 지우고 새로 넣는다(CODE_GUIDE 6.4)
             session.query(Position).filter(
                 Position.announcement_id == announcement.recrut_pblnt_sn
             ).delete(synchronize_session=False)
