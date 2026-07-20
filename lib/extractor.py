@@ -63,7 +63,7 @@ _OUTPUT_SCHEMA = {
     "required": ["positions"],
 }
 
-# 프롬프트. schema를 그대로 Ollama에 전달하면, 모델이 JSON 스키마에 맞는 JSON만 반환하도록 유도할 수 있다.
+# 스키마를 Ollama에 그대로 넘기면 구조화 출력이 강제된다(CODE_GUIDE 8.7)
 
 SYSTEM_PROMPT = """너는 한국 공공기관 채용공고 분석가다. 하나의 채용공고 원문을 받아,
 그 공고에 포함된 채용 "직무" 단위로 분해해라.
@@ -117,7 +117,7 @@ def _build_user_content(announcement) -> str:
 
 
 class Extractor:
-    """로컬 Ollama 서버(exaone3.5)를 통해 공고를 직무 단위로 분해한다."""
+    """공고를 직무 단위로 분해. 자세한 설명은 CODE_GUIDE 4.7."""
 
     def __init__(self, base_url: str = OLLAMA_URL, model: str = MODEL, timeout: float = 300.0):
         self.base_url = base_url

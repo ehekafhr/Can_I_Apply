@@ -1,15 +1,7 @@
-"""직무(Position) 벡터 사전계산 CLI.
+"""직무 벡터 사전계산 CLI. 자세한 설명은 CODE_GUIDE 10장.
 
-각 직무의 텍스트(제목+태그+설명)를 임베딩해 position_embeddings에 저장한다.
-검색(유사도) 서비스는 이 표를 메모리에 올려 코사인 유사도를 계산한다.
-
-사용법
-------
-    python embed.py            # 아직 임베딩이 없거나 원문이 바뀐 직무만 (증분)
-    python embed.py --all      # 전부 다시 계산 (모델을 바꿨을 때)
-
-모델은 EMBED_MODEL 환경변수로 바꾼다(기본 bge-m3). Ollama 서버가 떠 있고
-해당 모델이 pull 되어 있어야 한다.
+    python embed.py          # 증분(신규/변경된 직무만)
+    python embed.py --all    # 전부 재계산(모델 변경 시)
 """
 
 import argparse
@@ -28,7 +20,7 @@ from lib.similarity import build_position_text
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-_UPSERT_BATCH = 64  # 한 번에 임베딩·저장하는 직무 수
+_UPSERT_BATCH = 64
 
 
 def _text_hash(text: str) -> str:
@@ -40,8 +32,7 @@ def embed_positions(reembed_all: bool = False):
     embedder = Embedder()
     model = EMBED_MODEL
 
-    # 임베딩 텍스트가 공고 원문을 참조하므로 공고를 함께 로드(N+1 방지)하고,
-    # 형제 직무 유무 판단용 공고별 직무 수도 한 번의 집계로 받아둔다.
+    # 공고를 함께 로드(N+1 방지) + 형제 직무 수를 한 번에 집계
     with SessionLocal() as session:
         positions = (
             session.query(Position).options(joinedload(Position.announcement)).all()
@@ -61,7 +52,7 @@ def embed_positions(reembed_all: bool = False):
             ).all()
         }
 
-        # 임베딩이 필요한 직무만 추린다: 없음 / 모델 다름 / 원문 바뀜 / --all
+        # 없음 / 모델 다름 / 원문 바뀜 / --all 인 것만
         pending: list[tuple[int, str, str]] = []  # (position_id, text, text_hash)
         for p in positions:
             text = build_position_text(p, sibling_counts.get(p.announcement_id, 1))
@@ -92,7 +83,6 @@ def embed_positions(reembed_all: bool = False):
         dim = int(vectors.shape[1])
         with SessionLocal() as session:
             for (pid, _text, h), vec in zip(chunk, vectors):
-                # upsert: 있으면 갱신, 없으면 삽입
                 row = session.get(PositionEmbedding, pid)
                 blob = vec.astype(np.float32).tobytes()
                 if row is None:
@@ -123,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--all",
         action="store_true",
-        help="전부 다시 임베딩(모델 변경 시). 기본은 증분.",
+        help="전부 다시 임베딩(모델 변경 시). 기본은 증분",
     )
     args = parser.parse_args()
     embed_positions(reembed_all=args.all)

@@ -66,14 +66,8 @@ class Announcement(Base):
         back_populates="announcement", cascade="all, delete-orphan"
     )
 
-# "직무 단위"의 레코드. 
-# 공고 하나에 "신입 + 다른 직무", "경력 + 원하는 직무" 형태로 지원 못하는 경우 지원할 수 없음에도 검색되는 문제 해결.
 class Position(Base):
-    """AI가 공고문에서 분해해 낸 직무 단위 레코드.
-
-    공고 하나에 "신입+경력"처럼 여러 직무/경력구분이 섞여 있을 수 있어
-    직무 단위로 별도 저장하고, 직무 단위 career_level/tags로 검색한다.
-    """
+    """AI가 공고문에서 분해해 낸 직무 단위 레코드. 배경은 CODE_GUIDE 6.3."""
 
     __tablename__ = "positions"
 
@@ -101,19 +95,14 @@ class Position(Base):
     )
 
     announcement: Mapped["Announcement"] = relationship(back_populates="positions")
-    # 의미검색용 임베딩(1:1). lazy 로딩이라 일반 검색 쿼리에는 영향 없음.
+    # 의미검색용 임베딩(1:1). lazy 로딩이라 일반 검색에는 영향 없음
     embedding: Mapped["PositionEmbedding | None"] = relationship(
         back_populates="position", cascade="all, delete-orphan", uselist=False
     )
 
 
 class PositionEmbedding(Base):
-    """직무(Position) 텍스트를 임베딩한 벡터. 직무 1개당 1행(1:1).
-
-    벡터는 float32를 그대로 이어붙인 바이트로 저장한다(1024차원 = 4KB).
-    numpy.frombuffer(vector, dtype=np.float32)로 복원한다.
-    text_hash는 임베딩의 원본 텍스트 해시로, 원문이 바뀌면 재계산 대상인지 판별한다.
-    """
+    """직무 임베딩 벡터(직무당 1행). 저장 형식은 CODE_GUIDE 10.2."""
 
     __tablename__ = "position_embeddings"
 
@@ -132,11 +121,7 @@ class PositionEmbedding(Base):
 
 
 class QueryCache(Base):
-    """검색어 임베딩 캐시(DB 영속). 자주 쓰는 단어를 반복 임베딩하지 않도록 한다.
-
-    키는 (정규화한 검색어 + 모델명). 서버를 재시작해도 유지된다.
-    인메모리 캐시(lib/similarity.py)와 2단계로 함께 쓴다.
-    """
+    """검색어 임베딩 캐시(DB 영속). 2단계 캐시 구조는 CODE_GUIDE 10.5."""
 
     __tablename__ = "query_cache"
 
