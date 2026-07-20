@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from lib.db import SessionLocal
 from lib.models import Announcement, Position
-from lib.similarity import DEFAULT_MIN_SIM, search_similar
+from lib.similarity import DEFAULT_SIM_RATIO, search_similar
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,12 @@ def search(
     request: Request,
     keyword: str | None = Query(None),
     sem: str | None = Query(None, description="의미 기반 검색어; 유사한 직무를 유사도순으로 표시"),
-    min_sim: float | None = Query(None, ge=0.0, le=1.0, description="의미검색 유사도 임계값(0~1)"),
+    precision: float | None = Query(
+        None,
+        ge=0.5,
+        le=1.0,
+        description="의미검색 정밀도. 최고 유사도 대비 이 비율 이상만 표시(높을수록 엄격)",
+    ),
     tag: str | None = Query(None),
     career: str | None = Query(None, description="사용자 본인의 경력 상태(신입/경력); 지원 가능한 공고를 모두 표시"),
     edu: str | None = Query(None, description="사용자 본인의 최종학력; 이 학력으로 지원 가능한 공고를 모두 표시"),
@@ -101,18 +106,18 @@ def search(
         if end_date:
             base = base.where(Announcement.pbanc_bgng_ymd <= end_date)
 
-        min_sim_eff = min_sim if min_sim is not None else DEFAULT_MIN_SIM
+        precision_eff = precision if precision is not None else DEFAULT_SIM_RATIO
         sim_map: dict[int, float] = {}
         sem_error = False
         sem_q = (sem or "").strip()
 
         if sem_q:
             # 의미검색: 다른 필터(경력/학력/지역/기간/태그)로 후보를 좁힌 뒤
-            # 검색어와의 코사인 유사도로 임계값 이상만 유사도순 정렬한다.
+            # 검색어와의 코사인 유사도로 최고점 대비 비율 이상만 유사도순 정렬한다.
             candidates = session.execute(base).scalars().all()
             pos_map = {p.id: p for p in candidates}
             try:
-                ranked = search_similar(sem_q, min_sim_eff, candidate_ids=set(pos_map))
+                ranked = search_similar(sem_q, precision_eff, candidate_ids=set(pos_map))
             except Exception as exc:
                 logger.warning("의미검색 실패(Ollama/임베딩 모델 확인 필요): %s", exc)
                 ranked = []
@@ -169,7 +174,7 @@ def search(
             "filters": {
                 "keyword": keyword or "",
                 "sem": sem or "",
-                "min_sim": min_sim_eff,
+                "precision": precision_eff,
                 "tag": tag or "",
                 "career": career or "",
                 "edu": edu or "",

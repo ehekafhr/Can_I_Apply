@@ -17,6 +17,8 @@ import hashlib
 import logging
 
 import numpy as np
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from lib.db import SessionLocal, init_db
 from lib.embedder import EMBED_MODEL, Embedder
@@ -38,8 +40,17 @@ def embed_positions(reembed_all: bool = False):
     embedder = Embedder()
     model = EMBED_MODEL
 
+    # 임베딩 텍스트가 공고 원문을 참조하므로 공고를 함께 로드(N+1 방지)하고,
+    # 형제 직무 유무 판단용 공고별 직무 수도 한 번의 집계로 받아둔다.
     with SessionLocal() as session:
-        positions = session.query(Position).all()
+        positions = (
+            session.query(Position).options(joinedload(Position.announcement)).all()
+        )
+        sibling_counts = dict(
+            session.query(Position.announcement_id, func.count(Position.id))
+            .group_by(Position.announcement_id)
+            .all()
+        )
         # 기존 임베딩 (position_id -> (model, text_hash))
         existing = {
             e.position_id: (e.model, e.text_hash)
@@ -50,16 +61,16 @@ def embed_positions(reembed_all: bool = False):
             ).all()
         }
 
-    # 임베딩이 필요한 직무만 추린다: 없음 / 모델 다름 / 원문 바뀜 / --all
-    pending: list[tuple[int, str, str]] = []  # (position_id, text, text_hash)
-    for p in positions:
-        text = build_position_text(p)
-        if not text:
-            continue
-        h = _text_hash(text)
-        prev = existing.get(p.id)
-        if reembed_all or prev is None or prev[0] != model or prev[1] != h:
-            pending.append((p.id, text, h))
+        # 임베딩이 필요한 직무만 추린다: 없음 / 모델 다름 / 원문 바뀜 / --all
+        pending: list[tuple[int, str, str]] = []  # (position_id, text, text_hash)
+        for p in positions:
+            text = build_position_text(p, sibling_counts.get(p.announcement_id, 1))
+            if not text:
+                continue
+            h = _text_hash(text)
+            prev = existing.get(p.id)
+            if reembed_all or prev is None or prev[0] != model or prev[1] != h:
+                pending.append((p.id, text, h))
 
     logger.info(
         "직무 %d개 중 임베딩 대상 %d개 (모델=%s)", len(positions), len(pending), model
