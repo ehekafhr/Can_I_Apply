@@ -111,6 +111,7 @@ def _build_user_content(announcement) -> str:
         "우대조건": announcement.pref_cond_cn,
         "자격요건": announcement.aply_qlfc_cn,
         "우대사항": announcement.pref_cn,
+        "공고본문": announcement.posting_body,
     }
     lines = [f"[{k}]\n{v}" for k, v in fields.items() if v not in (None, "")]
     return "\n\n".join(lines)

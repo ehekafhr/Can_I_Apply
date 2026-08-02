@@ -1,6 +1,6 @@
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "jobs.db")
@@ -20,3 +20,20 @@ def init_db():
     from lib import models  # noqa: F401  (registers models on Base.metadata)
 
     Base.metadata.create_all(engine)
+    _ensure_columns()
+
+
+# create_all은 새 컬럼을 추가하지 않으므로, 기존 DB에 누락된 컬럼만 ALTER로 채운다.
+_ADDED_COLUMNS = {"announcements": {"posting_body": "TEXT"}}
+
+
+def _ensure_columns():
+    insp = inspect(engine)
+    for table, columns in _ADDED_COLUMNS.items():
+        if not insp.has_table(table):
+            continue
+        existing = {c["name"] for c in insp.get_columns(table)}
+        for name, coltype in columns.items():
+            if name not in existing:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {coltype}"))

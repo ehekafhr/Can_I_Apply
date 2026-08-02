@@ -17,8 +17,11 @@ pip install -r requirements.txt
 python collect.py --backfill      # 최초: 진행중 공고 전체
 python collect.py                 # 이후: 신규만
 
+# 1.5) 공고 본문 수집 (잡알리오 공고 내 영역 → posting_body)
+python include_text.py            # posting_body 없는 공고만 (증분)
+
 # 2) 추출
-python extract.py                 # positions 없는 공고를 직무로 분해
+python extract.py                 # positions 없는 공고를 직무로 분해 (공고본문 반영)
 
 # 2.5) 임베딩 (의미검색용 직무 벡터)
 python embed.py                   # 새/변경된 직무만 임베딩 (증분)

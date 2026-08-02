@@ -54,6 +54,8 @@ class Announcement(Base):
 
     ongoing_yn: Mapped[str | None] = mapped_column(String(1), index=True)
 
+    posting_body: Mapped[str | None] = mapped_column(Text)
+
     raw_json: Mapped[str | None] = mapped_column(Text)
     collected_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
