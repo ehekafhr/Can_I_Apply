@@ -1,6 +1,14 @@
 import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lib.db import Base
@@ -46,6 +54,8 @@ class Announcement(Base):
 
     ongoing_yn: Mapped[str | None] = mapped_column(String(1), index=True)
 
+    posting_body: Mapped[str | None] = mapped_column(Text)
+
     raw_json: Mapped[str | None] = mapped_column(Text)
     collected_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
@@ -58,14 +68,8 @@ class Announcement(Base):
         back_populates="announcement", cascade="all, delete-orphan"
     )
 
-# "직무 단위"의 레코드. 
-# 공고 하나에 "신입 + 다른 직무", "경력 + 원하는 직무" 형태로 지원 못하는 경우 지원할 수 없음에도 검색되는 문제 해결.
 class Position(Base):
-    """AI가 공고문에서 분해해 낸 직무 단위 레코드.
-
-    공고 하나에 "신입+경력"처럼 여러 직무/경력구분이 섞여 있을 수 있어
-    직무 단위로 별도 저장하고, 직무 단위 career_level/tags로 검색한다.
-    """
+    """AI가 공고문에서 분해해 낸 직무 단위 레코드. 배경은 CODE_GUIDE 6.3."""
 
     __tablename__ = "positions"
 
@@ -93,6 +97,44 @@ class Position(Base):
     )
 
     announcement: Mapped["Announcement"] = relationship(back_populates="positions")
+    # 의미검색용 임베딩(1:1). lazy 로딩이라 일반 검색에는 영향 없음
+    embedding: Mapped["PositionEmbedding | None"] = relationship(
+        back_populates="position", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class PositionEmbedding(Base):
+    """직무 임베딩 벡터(직무당 1행). 저장 형식은 CODE_GUIDE 10.2."""
+
+    __tablename__ = "position_embeddings"
+
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("positions.id"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(50))
+    dim: Mapped[int] = mapped_column(Integer)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    text_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    position: Mapped["Position"] = relationship(back_populates="embedding")
+
+
+class QueryCache(Base):
+    """검색어 임베딩 캐시(DB 영속). 2단계 캐시 구조는 CODE_GUIDE 10.5."""
+
+    __tablename__ = "query_cache"
+
+    query: Mapped[str] = mapped_column(String(200), primary_key=True)
+    model: Mapped[str] = mapped_column(String(50), primary_key=True)
+    dim: Mapped[int] = mapped_column(Integer)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)
+    hit_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
 
 class Attachment(Base):

@@ -13,5 +13,5 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="경력직이신가요?", lifespan=lifespan)
+app = FastAPI(title="지원해도 될까요?", lifespan=lifespan)
 app.include_router(router)
