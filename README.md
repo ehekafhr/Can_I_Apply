@@ -2,8 +2,9 @@
 ```bash
 export OLLAMA_MODELS=~/.local/ollama/models
 ~/.local/ollama/bin/ollama serve        
-ollama pull exaone3.5:7.8b              
-ollama pull bge-m3                      
+ollama pull exaone3.5:2.4b             # 추출 1단계(빠름)
+ollama pull exaone3.5:7.8b             # 추출 2단계 재검증(품질)
+ollama pull bge-m3                      # 의미검색 임베딩
 ```
 ## 실행
 
@@ -11,7 +12,7 @@ ollama pull bge-m3
 # 0) 준비
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-# Ollama 서버 + 모델(exaone3.5:7.8b, bge-m3)이 로컬에서 떠 있어야 한다.
+# Ollama 서버 + 모델(exaone3.5:2.4b, 7.8b, bge-m3)이 로컬에서 떠 있어야 한다.
 
 # 1) 수집
 python collect.py --backfill      # 최초: 진행중 공고 전체
@@ -20,8 +21,10 @@ python collect.py                 # 이후: 신규만
 # 1.5) 공고 본문 수집 (잡알리오 공고 내 영역 → posting_body)
 python include_text.py            # posting_body 없는 공고만 (증분)
 
-# 2) 추출
-python extract.py                 # positions 없는 공고를 직무로 분해 (공고본문 반영)
+# 2) 추출 (2단계: 2.4b 전량 → 면허 애매건만 7.8b 재검증)
+python extract.py                 # pending만 (공고본문 반영)
+python extract.py --all           # 이미 추출된 공고까지 전부 재추출
+python extract.py --no-review     # 2.4b만, 재검증 생략 (가장 빠름)
 
 # 2.5) 임베딩 (의미검색용 직무 벡터)
 python embed.py                   # 새/변경된 직무만 임베딩 (증분)
