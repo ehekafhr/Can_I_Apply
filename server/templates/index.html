@@ -136,7 +136,7 @@
       {% if src %}
         <a href="{{ src }}" target="_blank" rel="noopener">원문 공고</a>
       {% else %}
-        <span class="no-link">링크 찾지 못함</span>
+        <a href="{{ a.recrut_pblnt_sn | jobalio_url }}" target="_blank" rel="noopener">잡알리오 공고</a>
       {% endif %}
     </div>
     {% if p.tags %}

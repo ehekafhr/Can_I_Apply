@@ -30,7 +30,15 @@ def normalize_src_url(value: str | None) -> str | None:
     return None
 
 
+def jobalio_url(recrut_pblnt_sn: int | None) -> str | None:
+    """공고번호로 잡알리오 상세 페이지 URL을 만든다(src_url 없을 때 폴백)."""
+    if recrut_pblnt_sn is None:
+        return None
+    return f"https://job.alio.go.kr/recruitview.do?idx={recrut_pblnt_sn}"
+
+
 templates.env.filters["clean_url"] = normalize_src_url
+templates.env.filters["jobalio_url"] = jobalio_url
 
 PAGE_SIZE = 50
 
