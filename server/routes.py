@@ -4,7 +4,7 @@ import re
 
 from fastapi import APIRouter, Query, Request
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select
+from sqlalchemy import func, literal, select
 
 from lib.db import SessionLocal
 from lib.models import Announcement, Position
@@ -93,9 +93,11 @@ def search(
                 | (Announcement.inst_nm.like(like))
             )
         if tag:
-            # 띄어쓰기로 구분된 여러 태그를 모두 만족(AND)하는 직무만 남긴다.
+            # tags는 "a,b,c" 콤마구분 문자열이라, 그냥 LIKE는 "정규직"이 "비정규직"에도
+            # 부분일치해버린다. 양끝에 콤마를 덧붙여 ",태그," 단위로 정확히 매칭한다.
+            padded_tags = literal(",").concat(Position.tags).concat(",")
             for t in tag.split():
-                base = base.where(Position.tags.like(f"%{t}%"))
+                base = base.where(padded_tags.like(f"%,{t},%"))
         if career and career in CAREER_ELIGIBILITY:
             base = base.where(Position.career_level.in_(CAREER_ELIGIBILITY[career]))
         if edu and edu in EDU_LADDER:
