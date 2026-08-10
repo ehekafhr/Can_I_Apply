@@ -4,9 +4,11 @@
     python extract.py --all           # 이미 추출된 공고까지 전부 재추출
     python extract.py --limit N        # N건만(테스트)
     python extract.py --no-review     # 2.4b만, 재검증 생략(가장 빠름)
+    python extract.py --open-only     # 마감(pbanc_end_ymd)이 지나지 않은 공고만 대상
 """
 
 import argparse
+import datetime
 import logging
 import os
 import re
@@ -83,18 +85,29 @@ def _extract_one(extractor, announcement):
         return None
 
 
-def extract_pending(reextract_all: bool = False, limit: int | None = None, review: bool = True):
+def extract_pending(
+    reextract_all: bool = False,
+    limit: int | None = None,
+    review: bool = True,
+    open_only: bool = False,
+):
     init_db()
 
     with SessionLocal() as session:
         if reextract_all:
-            target_ids = [a.recrut_pblnt_sn for a in session.query(Announcement.recrut_pblnt_sn).all()]
+            q = session.query(Announcement.recrut_pblnt_sn)
         else:
             done = {r[0] for r in session.query(Position.announcement_id).distinct()}
             q = session.query(Announcement.recrut_pblnt_sn)
             if done:
                 q = q.filter(~Announcement.recrut_pblnt_sn.in_(done))
-            target_ids = [r[0] for r in q.all()]
+        if open_only:
+            # 마감일(YYYYMMDD) 문자열 비교. 마감일이 없는 공고는 상시채용으로 보고 포함한다.
+            today = datetime.date.today().strftime("%Y%m%d")
+            q = q.filter(
+                (Announcement.pbanc_end_ymd >= today) | (Announcement.pbanc_end_ymd.is_(None))
+            )
+        target_ids = [r[0] for r in q.all()]
     if limit:
         target_ids = target_ids[:limit]
 
@@ -133,5 +146,11 @@ if __name__ == "__main__":
     parser.add_argument("--all", action="store_true", help="이미 추출된 공고까지 전부 재추출")
     parser.add_argument("--limit", type=int, default=None, help="N건만 처리(테스트용)")
     parser.add_argument("--no-review", action="store_true", help="2.4b만, 7.8b 재검증 생략")
+    parser.add_argument("--open-only", action="store_true", help="마감이 지나지 않은 공고만 대상")
     args = parser.parse_args()
-    extract_pending(reextract_all=args.all, limit=args.limit, review=not args.no_review)
+    extract_pending(
+        reextract_all=args.all,
+        limit=args.limit,
+        review=not args.no_review,
+        open_only=args.open_only,
+    )
