@@ -59,7 +59,7 @@
       <option value="0.85" {% if 0.825 <= filters.precision < 0.875 %}selected{% endif %}>정밀도 보통</option>
       <option value="0.80" {% if filters.precision < 0.825 %}selected{% endif %}>정밀도 낮음 (폭넓게)</option>
     </select>
-    <input type="text" name="tag" placeholder="태그 (예: 전산, 정규직)" value="{{ filters.tag }}">
+    <input type="text" name="tag" placeholder="태그 (여러 개는 띄어쓰기, 예: 전산 정규직)" value="{{ filters.tag }}">
     <select name="career" title="내 경력 상태로 지원 가능한 공고를 모두 표시합니다">
       <option value="">내 경력 (전체)</option>
       {% for val, label in career_options %}
@@ -73,8 +73,7 @@
       {% endfor %}
     </select>
     <input type="text" name="work_rgn" placeholder="지역 (예: 서울)" value="{{ filters.work_rgn }}">
-    <input type="text" name="bgn_date" placeholder="시작일 이후 (YYYYMMDD)" value="{{ filters.bgn_date }}">
-    <input type="text" name="end_date" placeholder="시작일 이전 (YYYYMMDD)" value="{{ filters.end_date }}">
+    <input type="text" name="apply_by" placeholder="최종 지원 가능일 (YYYYMMDD)" value="{{ filters.apply_by }}" title="이 날짜까지 지원 가능한(마감일이 이 날짜 이후인) 공고만 표시">
     <select name="sort">
       <option value="latest" {% if filters.sort == "latest" %}selected{% endif %}>최신순</option>
       <option value="deadline" {% if filters.sort == "deadline" %}selected{% endif %}>마감임박순</option>
@@ -103,7 +102,7 @@
     </p>
   {% endif %}
 
-  {% set qs %}keyword={{ filters.keyword|urlencode }}&sem={{ filters.sem|urlencode }}&precision={{ filters.precision }}&tag={{ filters.tag|urlencode }}&career={{ filters.career|urlencode }}&edu={{ filters.edu|urlencode }}&work_rgn={{ filters.work_rgn|urlencode }}&bgn_date={{ filters.bgn_date|urlencode }}&end_date={{ filters.end_date|urlencode }}&sort={{ filters.sort|urlencode }}{% endset %}
+  {% set qs %}keyword={{ filters.keyword|urlencode }}&sem={{ filters.sem|urlencode }}&precision={{ filters.precision }}&tag={{ filters.tag|urlencode }}&career={{ filters.career|urlencode }}&edu={{ filters.edu|urlencode }}&work_rgn={{ filters.work_rgn|urlencode }}&apply_by={{ filters.apply_by|urlencode }}&sort={{ filters.sort|urlencode }}{% endset %}
 
   {% for p in results %}
   {% set a = p.announcement %}
