@@ -5,6 +5,7 @@ export OLLAMA_MODELS=~/.local/ollama/models
 ollama pull exaone3.5:2.4b             # 추출 1단계(빠름)
 ollama pull exaone3.5:7.8b             # 추출 2단계 재검증(품질)
 ollama pull bge-m3                      # 의미검색 임베딩
+ollama pull qwen2.5vl:7b                 # 첨부파일(스캔본 PDF/이미지) OCR
 ```
 ## 실행
 
@@ -20,6 +21,9 @@ python collect.py                 # 이후: 신규만
 
 # 1.5) 공고 본문 수집 (잡알리오 공고 내 영역 → posting_body)
 python include_text.py            # posting_body 없는 공고만 (증분)
+
+# 1.7) 첨부파일(PDF/HWP/이미지) 본문 추출 — collect.py가 다운로드한 첨부파일 대상
+python analyze_attachments.py     # 미분석 첨부파일만 (증분)
 
 # 2) 추출 (2단계: 2.4b 전량 → 면허 애매건만 7.8b 재검증)
 python extract.py                 # pending만 (공고본문 반영)

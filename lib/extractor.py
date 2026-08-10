@@ -98,6 +98,21 @@ API의 경력구분(recrutSe) 필드는 공고 전체에 하나만 붙어있어 
 """
 
 
+# 첨부문서 원문 상한(토큰 폭주 방지). 여러 첨부파일은 구분선으로 이어붙인 뒤 이 길이에서 자른다.
+_ATTACHMENT_TEXT_MAX_CHARS = 6000
+
+
+def _attachment_text(announcement) -> str | None:
+    parts = [
+        a.extracted_text.strip()
+        for a in announcement.attachments
+        if a.extracted_text and a.extracted_text.strip()
+    ]
+    if not parts:
+        return None
+    return "\n\n---\n\n".join(parts)[:_ATTACHMENT_TEXT_MAX_CHARS]
+
+
 def _build_user_content(announcement) -> str:
     fields = {
         "기관명": announcement.inst_nm,
@@ -112,6 +127,7 @@ def _build_user_content(announcement) -> str:
         "자격요건": announcement.aply_qlfc_cn,
         "우대사항": announcement.pref_cn,
         "공고본문": announcement.posting_body,
+        "첨부파일 내용": _attachment_text(announcement),
     }
     lines = [f"[{k}]\n{v}" for k, v in fields.items() if v not in (None, "")]
     return "\n\n".join(lines)

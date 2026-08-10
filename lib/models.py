@@ -155,4 +155,9 @@ class Attachment(Base):
         DateTime, default=datetime.datetime.utcnow
     )
 
+    # PDF/HWP/이미지 첨부문서 분석 결과. extraction_method는 "pdf_text"|"pdf_vlm"|"hwp_html"|"hwpx_text"|"image_vlm" 중 하나.
+    extracted_text: Mapped[str | None] = mapped_column(Text)
+    extraction_method: Mapped[str | None] = mapped_column(String(20))
+    analyzed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime)
+
     announcement: Mapped["Announcement"] = relationship(back_populates="attachments")

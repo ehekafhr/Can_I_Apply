@@ -24,7 +24,14 @@ def init_db():
 
 
 # create_all은 새 컬럼을 추가하지 않으므로, 기존 DB에 누락된 컬럼만 ALTER로 채운다.
-_ADDED_COLUMNS = {"announcements": {"posting_body": "TEXT"}}
+_ADDED_COLUMNS = {
+    "announcements": {"posting_body": "TEXT"},
+    "attachments": {
+        "extracted_text": "TEXT",
+        "extraction_method": "TEXT",
+        "analyzed_at": "DATETIME",
+    },
+}
 
 
 def _ensure_columns():
