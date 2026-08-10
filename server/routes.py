@@ -74,12 +74,11 @@ def search(
         le=1.0,
         description="의미검색 정밀도. 최고 유사도 대비 이 비율 이상만 표시(높을수록 엄격)",
     ),
-    tag: str | None = Query(None),
+    tag: str | None = Query(None, description="태그. 띄어쓰기로 여러 개를 넣으면 모두 포함하는(AND) 직무만 표시"),
     career: str | None = Query(None, description="사용자 본인의 경력 상태(신입/경력); 지원 가능한 공고를 모두 표시"),
     edu: str | None = Query(None, description="사용자 본인의 최종학력; 이 학력으로 지원 가능한 공고를 모두 표시"),
     work_rgn: str | None = Query(None),
-    bgn_date: str | None = Query(None, description="YYYYMMDD, 공고 시작일 이후"),
-    end_date: str | None = Query(None, description="YYYYMMDD, 공고 시작일 이전"),
+    apply_by: str | None = Query(None, description="YYYYMMDD, 이 날짜까지 지원 가능한(마감일이 이 날짜 이후인) 공고만 표시"),
     sort: str = Query("latest", pattern="^(latest|deadline)$"),
     page: int = Query(1, ge=1),
 ):
@@ -94,7 +93,9 @@ def search(
                 | (Announcement.inst_nm.like(like))
             )
         if tag:
-            base = base.where(Position.tags.like(f"%{tag}%"))
+            # 띄어쓰기로 구분된 여러 태그를 모두 만족(AND)하는 직무만 남긴다.
+            for t in tag.split():
+                base = base.where(Position.tags.like(f"%{t}%"))
         if career and career in CAREER_ELIGIBILITY:
             base = base.where(Position.career_level.in_(CAREER_ELIGIBILITY[career]))
         if edu and edu in EDU_LADDER:
@@ -106,10 +107,9 @@ def search(
                 (Announcement.work_rgn_nm_lst.like(f"%{work_rgn}%"))
                 | (Position.location.like(f"%{work_rgn}%"))
             )
-        if bgn_date:
-            base = base.where(Announcement.pbanc_bgng_ymd >= bgn_date)
-        if end_date:
-            base = base.where(Announcement.pbanc_bgng_ymd <= end_date)
+        if apply_by:
+            # 마감일이 이 날짜 이후(포함)인 공고만 = 이 날짜까지는 지원 가능한 공고
+            base = base.where(Announcement.pbanc_end_ymd >= apply_by)
 
         precision_eff = precision if precision is not None else DEFAULT_SIM_RATIO
         sim_map: dict[int, float] = {}
@@ -183,8 +183,7 @@ def search(
                 "career": career or "",
                 "edu": edu or "",
                 "work_rgn": work_rgn or "",
-                "bgn_date": bgn_date or "",
-                "end_date": end_date or "",
+                "apply_by": apply_by or "",
                 "sort": sort,
             },
         },
