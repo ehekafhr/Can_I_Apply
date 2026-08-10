@@ -5,6 +5,9 @@
     python extract.py --limit N        # N건만(테스트)
     python extract.py --no-review     # 2.4b만, 재검증 생략(가장 빠름)
     python extract.py --open-only     # 마감(pbanc_end_ymd)이 지나지 않은 공고만 대상
+    python extract.py --with-attachments --all
+                                       # 첨부파일 텍스트가 있는 공고만 재추출(다른 공고는 입력이
+                                       # 그대로라 다시 돌려도 결과가 바뀌지 않으므로 제외)
 """
 
 import argparse
@@ -15,7 +18,7 @@ import re
 
 from lib.db import SessionLocal, init_db
 from lib.extractor import Extractor
-from lib.models import Announcement, Position
+from lib.models import Announcement, Attachment, Position, PositionEmbedding
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -52,7 +55,22 @@ def _dedupe(positions: list[dict]) -> list[dict]:
 
 
 def _save(session, announcement_id: int, positions: list[dict], model: str):
-    """공고 단위 멱등: 기존 직무를 지우고 새로 넣는다(CODE_GUIDE 6.4)."""
+    """공고 단위 멱등: 기존 직무를 지우고 새로 넣는다(CODE_GUIDE 6.4).
+
+    Position.delete()는 bulk DELETE라 SQLAlchemy의 cascade="delete-orphan"을 타지 않는다.
+    그대로 두면 지워진 직무를 가리키던 PositionEmbedding이 고아 행으로 계속 쌓이므로,
+    먼저 명시적으로 함께 지운다.
+    """
+    old_ids = [
+        pid
+        for (pid,) in session.query(Position.id).filter(
+            Position.announcement_id == announcement_id
+        )
+    ]
+    if old_ids:
+        session.query(PositionEmbedding).filter(
+            PositionEmbedding.position_id.in_(old_ids)
+        ).delete(synchronize_session=False)
     session.query(Position).filter(
         Position.announcement_id == announcement_id
     ).delete(synchronize_session=False)
@@ -90,6 +108,7 @@ def extract_pending(
     limit: int | None = None,
     review: bool = True,
     open_only: bool = False,
+    with_attachments: bool = False,
 ):
     init_db()
 
@@ -107,6 +126,16 @@ def extract_pending(
             q = q.filter(
                 (Announcement.pbanc_end_ymd >= today) | (Announcement.pbanc_end_ymd.is_(None))
             )
+        if with_attachments:
+            # 첨부파일에서 텍스트가 실제로 뽑힌 공고만. 나머지는 이전과 입력이 같아 재추출해도
+            # 결과가 바뀌지 않으므로(모델 확률적 편차 제외) 제외한다.
+            has_text = {
+                r[0]
+                for r in session.query(Attachment.announcement_id)
+                .filter(Attachment.extracted_text.isnot(None))
+                .distinct()
+            }
+            q = q.filter(Announcement.recrut_pblnt_sn.in_(has_text))
         target_ids = [r[0] for r in q.all()]
     if limit:
         target_ids = target_ids[:limit]
@@ -147,10 +176,14 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=None, help="N건만 처리(테스트용)")
     parser.add_argument("--no-review", action="store_true", help="2.4b만, 7.8b 재검증 생략")
     parser.add_argument("--open-only", action="store_true", help="마감이 지나지 않은 공고만 대상")
+    parser.add_argument(
+        "--with-attachments", action="store_true", help="첨부파일에서 텍스트가 뽑힌 공고만 대상"
+    )
     args = parser.parse_args()
     extract_pending(
         reextract_all=args.all,
         limit=args.limit,
         review=not args.no_review,
         open_only=args.open_only,
+        with_attachments=args.with_attachments,
     )
